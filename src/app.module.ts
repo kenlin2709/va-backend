@@ -4,6 +4,9 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { CategoriesModule } from './categories/categories.module';
+import { ProductsModule } from './products/products.module';
+import { UploadsModule } from './uploads/uploads.module';
 
 @Module({
   imports: [
@@ -11,7 +14,6 @@ import { AppService } from './app.service';
       isGlobal: true,
       cache: true,
       expandVariables: true,
-      // Fail fast if required env vars are missing
       validate: (config) => {
         if (!config.MONGODB_URI) {
           throw new Error(
@@ -27,6 +29,10 @@ import { AppService } from './app.service';
         uri: config.get<string>('MONGODB_URI')!,
       }),
     }),
+
+    CategoriesModule,
+    ProductsModule,
+    UploadsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
