@@ -1,5 +1,35 @@
 import { Transform } from 'class-transformer';
-import { IsInt, IsMongoId, IsNotEmpty, IsNumber, IsOptional, IsString, IsUrl, Max, Min } from 'class-validator';
+import {
+  ArrayUnique,
+  IsArray,
+  IsInt,
+  IsMongoId,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Max,
+  Min,
+} from 'class-validator';
+
+function parseStringArray(value: unknown): string[] | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (Array.isArray(value)) return value.map(String).filter(Boolean);
+  if (typeof value !== 'string') return undefined;
+  const v = value.trim();
+  if (!v) return undefined;
+  if (v.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(v);
+      if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+    } catch {
+      return undefined;
+    }
+  }
+  // Comma separated fallback
+  return v.split(',').map((s) => s.trim()).filter(Boolean);
+}
 
 export class CreateProductDto {
   @IsString()
@@ -14,6 +44,13 @@ export class CreateProductDto {
   @IsOptional()
   @IsMongoId()
   categoryId?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => parseStringArray(value))
+  @IsArray()
+  @ArrayUnique()
+  @IsMongoId({ each: true })
+  categoryIds?: string[];
 
   @IsOptional()
   @IsString()

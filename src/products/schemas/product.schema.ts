@@ -15,6 +15,10 @@ export class Product {
   @Prop({ type: Types.ObjectId, ref: 'Category', index: true, required: false })
   categoryId?: Types.ObjectId;
 
+  // New: multi-category support
+  @Prop({ type: [Types.ObjectId], ref: 'Category', index: true, required: false, default: [] })
+  categoryIds!: Types.ObjectId[];
+
   @Prop({ trim: true })
   productImageUrl?: string;
 

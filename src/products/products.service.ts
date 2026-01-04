@@ -27,12 +27,21 @@ export class ProductsService {
       stockQty: dto.stockQty ?? 0,
     };
 
-    if (dto.categoryId) {
-      const categoryExists = await this.categoryModel.exists({ _id: dto.categoryId });
-      if (!categoryExists) {
-        throw new BadRequestException('categoryId does not exist');
+    const ids = new Set<string>();
+    if (dto.categoryId) ids.add(dto.categoryId);
+    for (const id of dto.categoryIds ?? []) ids.add(id);
+
+    if (ids.size) {
+      const objectIds = [...ids].map((id) => new Types.ObjectId(id));
+      const found = await this.categoryModel
+        .find({ _id: { $in: objectIds } }, { _id: 1 })
+        .lean();
+      if (found.length !== objectIds.length) {
+        throw new BadRequestException('One or more categoryIds do not exist');
       }
-      doc.categoryId = new Types.ObjectId(dto.categoryId);
+      doc.categoryIds = objectIds;
+      // Backward-compatible single field
+      doc.categoryId = objectIds[0];
     }
 
     if (image) {
@@ -52,7 +61,8 @@ export class ProductsService {
     const filter: Record<string, any> = {};
 
     if (query.categoryId) {
-      filter.categoryId = new Types.ObjectId(query.categoryId);
+      const oid = new Types.ObjectId(query.categoryId);
+      filter.$or = [{ categoryId: oid }, { categoryIds: oid }];
     }
 
     if (query.q) {
@@ -83,15 +93,32 @@ export class ProductsService {
   }
 
   async update(id: string, dto: UpdateProductDto, image?: Express.Multer.File) {
-    if (dto.categoryId) {
-      const categoryExists = await this.categoryModel.exists({ _id: dto.categoryId });
-      if (!categoryExists) {
-        throw new BadRequestException('categoryId does not exist');
+    const update: any = { ...dto };
+
+    // Multi-category semantics:
+    // - if categoryIds provided => replace list
+    // - else if categoryId provided => replace list with single id
+    // - else => leave unchanged
+    const nextIds =
+      dto.categoryIds !== undefined ? dto.categoryIds : dto.categoryId ? [dto.categoryId] : undefined;
+
+    if (nextIds !== undefined) {
+      const unique = [...new Set(nextIds)].filter(Boolean);
+      if (unique.length) {
+        const objectIds = unique.map((x) => new Types.ObjectId(x));
+        const found = await this.categoryModel
+          .find({ _id: { $in: objectIds } }, { _id: 1 })
+          .lean();
+        if (found.length !== objectIds.length) {
+          throw new BadRequestException('One or more categoryIds do not exist');
+        }
+        update.categoryIds = objectIds;
+        update.categoryId = objectIds[0];
+      } else {
+        update.categoryIds = [];
+        update.categoryId = undefined;
       }
     }
-
-    const update: any = { ...dto };
-    if (dto.categoryId) update.categoryId = new Types.ObjectId(dto.categoryId);
 
     if (image) {
       const uploaded = await this.uploadsService.uploadImage({
