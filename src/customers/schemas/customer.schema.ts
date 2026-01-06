@@ -19,6 +19,10 @@ export class Customer {
 
   @Prop({ trim: true })
   phone?: string;
+
+  // Used to gate access to admin UI/APIs. Defaults to false.
+  @Prop({ type: Boolean, default: false })
+  isAdmin!: boolean;
 }
 
 export const CustomerSchema = SchemaFactory.createForClass(Customer);
