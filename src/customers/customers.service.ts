@@ -41,6 +41,19 @@ export class CustomersService {
       phone: input.phone,
     });
   }
+
+  async updateProfile(customerId: string, update: Partial<Customer>) {
+    // Never allow password changes here.
+    delete (update as any).passwordHash;
+    delete (update as any).isAdmin;
+    delete (update as any).email;
+
+    const doc = await this.customerModel
+      .findByIdAndUpdate(customerId, update, { new: true, runValidators: true })
+      .lean();
+    if (!doc) throw new NotFoundException('Customer not found');
+    return doc;
+  }
 }
 
 

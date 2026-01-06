@@ -5,6 +5,7 @@ import * as bcrypt from 'bcryptjs';
 import { CustomersService } from '../customers/customers.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 function sanitizeCustomer(c: any) {
   if (!c) return c;
@@ -53,6 +54,17 @@ export class AuthService {
 
   async me(customerId: string) {
     const customer = await this.customers.findById(customerId);
+    return { customer: sanitizeCustomer(customer) };
+  }
+
+  async updateMe(customerId: string, dto: UpdateProfileDto) {
+    const update: any = {};
+    if (dto.firstName !== undefined) update.firstName = dto.firstName;
+    if (dto.lastName !== undefined) update.lastName = dto.lastName;
+    if (dto.phone !== undefined) update.phone = dto.phone;
+    if (dto.shippingAddress !== undefined) update.shippingAddress = dto.shippingAddress;
+
+    const customer = await this.customers.updateProfile(customerId, update);
     return { customer: sanitizeCustomer(customer) };
   }
 }
