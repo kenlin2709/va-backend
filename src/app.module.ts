@@ -7,6 +7,9 @@ import { AppService } from './app.service';
 import { CategoriesModule } from './categories/categories.module';
 import { ProductsModule } from './products/products.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { CustomersModule } from './customers/customers.module';
+import { AuthModule } from './auth/auth.module';
+import { OrdersModule } from './orders/orders.module';
 
 @Module({
   imports: [
@@ -19,6 +22,9 @@ import { UploadsModule } from './uploads/uploads.module';
           throw new Error(
             'Missing MONGODB_URI. Create a .env file (see .env.example) and set MONGODB_URI=...'
           );
+        }
+        if (!config.JWT_SECRET) {
+          throw new Error('Missing JWT_SECRET. Set JWT_SECRET=... in your .env file');
         }
         return config;
       },
@@ -33,6 +39,9 @@ import { UploadsModule } from './uploads/uploads.module';
     CategoriesModule,
     ProductsModule,
     UploadsModule,
+    CustomersModule,
+    AuthModule,
+    OrdersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

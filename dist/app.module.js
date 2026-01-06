@@ -15,6 +15,9 @@ const app_service_1 = require("./app.service");
 const categories_module_1 = require("./categories/categories.module");
 const products_module_1 = require("./products/products.module");
 const uploads_module_1 = require("./uploads/uploads.module");
+const customers_module_1 = require("./customers/customers.module");
+const auth_module_1 = require("./auth/auth.module");
+const orders_module_1 = require("./orders/orders.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -29,6 +32,9 @@ exports.AppModule = AppModule = __decorate([
                     if (!config.MONGODB_URI) {
                         throw new Error('Missing MONGODB_URI. Create a .env file (see .env.example) and set MONGODB_URI=...');
                     }
+                    if (!config.JWT_SECRET) {
+                        throw new Error('Missing JWT_SECRET. Set JWT_SECRET=... in your .env file');
+                    }
                     return config;
                 },
             }),
@@ -41,6 +47,9 @@ exports.AppModule = AppModule = __decorate([
             categories_module_1.CategoriesModule,
             products_module_1.ProductsModule,
             uploads_module_1.UploadsModule,
+            customers_module_1.CustomersModule,
+            auth_module_1.AuthModule,
+            orders_module_1.OrdersModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],
