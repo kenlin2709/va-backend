@@ -3,7 +3,7 @@ import { HydratedDocument, Types } from 'mongoose';
 
 export type OrderDocument = HydratedDocument<Order>;
 
-export type OrderStatus = 'pending' | 'paid' | 'shipped' | 'cancelled';
+export type OrderStatus = 'pending' | 'paid' | 'shipped';
 
 @Schema({ _id: false })
 export class OrderItem {
@@ -61,6 +61,13 @@ export class Order {
 
   @Prop()
   shippingPostcode?: string;
+
+  // Admin fulfillment fields
+  @Prop({ trim: true })
+  shippingCarrier?: string;
+
+  @Prop({ trim: true })
+  trackingNumber?: string;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

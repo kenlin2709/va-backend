@@ -10,6 +10,7 @@ import { randomBytes } from 'crypto';
 import { Order, OrderDocument } from './schemas/order.schema';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Product, ProductDocument } from '../products/schemas/product.schema';
+import type { OrderStatus } from './schemas/order.schema';
 
 @Injectable()
 export class OrdersService {
@@ -145,5 +146,74 @@ export class OrdersService {
         { $project: { customer: 0 } },
       ])
       .exec();
+  }
+
+  private async getEnrichedById(_id: Types.ObjectId): Promise<unknown> {
+    const docs = (await this.orderModel
+      .aggregate([
+        { $match: { _id } },
+        {
+          $lookup: {
+            from: 'customers',
+            localField: 'customerId',
+            foreignField: '_id',
+            as: 'customer',
+          },
+        },
+        { $unwind: { path: '$customer', preserveNullAndEmptyArrays: true } },
+        {
+          $addFields: {
+            customerEmail: '$customer.email',
+            customerInfo: {
+              _id: '$customer._id',
+              email: '$customer.email',
+              firstName: '$customer.firstName',
+              lastName: '$customer.lastName',
+              phone: '$customer.phone',
+              shippingAddress: '$customer.shippingAddress',
+            },
+          },
+        },
+        { $project: { customer: 0 } },
+      ])
+      .exec()) as unknown[];
+
+    return docs?.[0];
+  }
+
+  async updateStatus(id: string, status: OrderStatus): Promise<unknown> {
+    const _id = new Types.ObjectId(id);
+
+    const exists = await this.orderModel.exists({ _id });
+    if (!exists) throw new NotFoundException('Order not found');
+
+    await this.orderModel.updateOne({ _id }, { $set: { status } });
+
+    const doc = await this.getEnrichedById(_id);
+    if (!doc) throw new NotFoundException('Order not found');
+    return doc;
+  }
+
+  async updateShipment(
+    id: string,
+    input: { shippingCarrier?: string; trackingNumber?: string },
+  ): Promise<unknown> {
+    const _id = new Types.ObjectId(id);
+    const exists = await this.orderModel.exists({ _id });
+    if (!exists) throw new NotFoundException('Order not found');
+
+    const $set: Record<string, unknown> = {};
+    if (input.shippingCarrier !== undefined) {
+      $set.shippingCarrier = input.shippingCarrier;
+    }
+    if (input.trackingNumber !== undefined) {
+      $set.trackingNumber = input.trackingNumber;
+    }
+
+    await this.orderModel.updateOne({ _id }, { $set });
+
+    const doc = await this.getEnrichedById(_id);
+    if (!doc) throw new NotFoundException('Order not found');
+    return doc;
   }
 }
