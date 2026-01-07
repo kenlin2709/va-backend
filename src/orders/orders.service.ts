@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { randomBytes } from 'crypto';
@@ -15,7 +19,9 @@ export class OrdersService {
   ) {}
 
   async create(customerId: string, dto: CreateOrderDto) {
-    if (!dto.items?.length) throw new BadRequestException('Order must include at least 1 item');
+    if (!dto.items?.length) {
+      throw new BadRequestException('Order must include at least 1 item');
+    }
 
     // merge duplicates
     const qtyByProductId = new Map<string, number>();
@@ -24,7 +30,9 @@ export class OrdersService {
       qtyByProductId.set(pid, (qtyByProductId.get(pid) ?? 0) + Number(i.qty));
     }
 
-    const productIds = [...qtyByProductId.keys()].map((id) => new Types.ObjectId(id));
+    const productIds = [...qtyByProductId.keys()].map(
+      (id) => new Types.ObjectId(id),
+    );
     const products = await this.productModel
       .find({ _id: { $in: productIds } })
       .lean();
@@ -55,10 +63,11 @@ export class OrdersService {
     let orderId = '';
     for (let attempt = 0; attempt < 5; attempt++) {
       orderId = randomBytes(4).toString('hex'); // 8 chars
-      // eslint-disable-next-line no-await-in-loop
       const exists = await this.orderModel.exists({ orderId });
       if (!exists) break;
-      if (attempt === 4) throw new BadRequestException('Failed to generate unique order id');
+      if (attempt === 4) {
+        throw new BadRequestException('Failed to generate unique order id');
+      }
     }
 
     // Decrement stock (best-effort, not transactional for MVP)
@@ -96,7 +105,10 @@ export class OrdersService {
 
   async getMine(customerId: string, orderId: string) {
     const doc = await this.orderModel
-      .findOne({ _id: new Types.ObjectId(orderId), customerId: new Types.ObjectId(customerId) })
+      .findOne({
+        _id: new Types.ObjectId(orderId),
+        customerId: new Types.ObjectId(customerId),
+      })
       .lean();
     if (!doc) throw new NotFoundException('Order not found');
     return doc;
@@ -121,5 +133,3 @@ export class OrdersService {
       .exec();
   }
 }
-
-
