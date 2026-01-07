@@ -1,19 +1,23 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, Post, UseGuards } from '@nestjs/common';
 
 import { OrdersService } from './orders.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AdminGuard } from '../auth/guards/admin.guard';
 import { CurrentCustomer, CurrentCustomer as CurrentCustomerDecorator } from '../auth/decorators/current-customer.decorator';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { CustomersService } from '../customers/customers.service';
 
 @Controller('orders')
 @UseGuards(JwtAuthGuard)
 export class OrdersController {
-  constructor(private readonly orders: OrdersService) {}
+  constructor(
+    private readonly orders: OrdersService,
+    private readonly customers: CustomersService,
+  ) {}
 
   @Get()
-  @UseGuards(AdminGuard)
-  listAll() {
+  async listAll(@CurrentCustomerDecorator() customer: CurrentCustomer) {
+    const c = await this.customers.findById(customer.customerId);
+    if (!c.isAdmin) throw new ForbiddenException('Admin only');
     return this.orders.listAll();
   }
 
