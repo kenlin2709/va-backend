@@ -129,7 +129,19 @@ export class OrdersService {
           },
         },
         { $unwind: { path: '$customer', preserveNullAndEmptyArrays: true } },
-        { $addFields: { customerEmail: '$customer.email' } },
+        {
+          $addFields: {
+            customerEmail: '$customer.email',
+            customerInfo: {
+              _id: '$customer._id',
+              email: '$customer.email',
+              firstName: '$customer.firstName',
+              lastName: '$customer.lastName',
+              phone: '$customer.phone',
+              shippingAddress: '$customer.shippingAddress',
+            },
+          },
+        },
         { $project: { customer: 0 } },
       ])
       .exec();
