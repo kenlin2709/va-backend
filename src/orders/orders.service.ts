@@ -14,8 +14,10 @@ import { Product, ProductDocument } from '../products/schemas/product.schema';
 @Injectable()
 export class OrdersService {
   constructor(
-    @InjectModel(Order.name) private readonly orderModel: Model<OrderDocument>,
-    @InjectModel(Product.name) private readonly productModel: Model<ProductDocument>,
+    @InjectModel(Order.name)
+    private readonly orderModel: Model<OrderDocument>,
+    @InjectModel(Product.name)
+    private readonly productModel: Model<ProductDocument>,
   ) {}
 
   async create(customerId: string, dto: CreateOrderDto) {
