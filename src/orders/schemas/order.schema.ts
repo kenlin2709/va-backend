@@ -27,6 +27,10 @@ const OrderItemSchema = SchemaFactory.createForClass(OrderItem);
 
 @Schema({ timestamps: true, collection: 'orders' })
 export class Order {
+  // Public-facing short id (8 hex chars) used in the UI
+  @Prop({ required: true, unique: true, index: true, trim: true })
+  orderId!: string;
+
   @Prop({ type: Types.ObjectId, ref: 'Customer', required: true, index: true })
   customerId!: Types.ObjectId;
 

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { randomBytes } from 'crypto';
 
 import { Order, OrderDocument } from './schemas/order.schema';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -50,6 +51,16 @@ export class OrdersService {
     const subtotal = items.reduce((sum, it) => sum + it.price * it.qty, 0);
     const total = subtotal; // placeholder for shipping/tax later
 
+    // Generate an 8-hex public order id (retry on extremely rare collisions)
+    let orderId = '';
+    for (let attempt = 0; attempt < 5; attempt++) {
+      orderId = randomBytes(4).toString('hex'); // 8 chars
+      // eslint-disable-next-line no-await-in-loop
+      const exists = await this.orderModel.exists({ orderId });
+      if (!exists) break;
+      if (attempt === 4) throw new BadRequestException('Failed to generate unique order id');
+    }
+
     // Decrement stock (best-effort, not transactional for MVP)
     for (const it of items) {
       const res = await this.productModel.updateOne(
@@ -62,6 +73,7 @@ export class OrdersService {
     }
 
     return this.orderModel.create({
+      orderId,
       customerId: new Types.ObjectId(customerId),
       items,
       subtotal,
