@@ -89,6 +89,10 @@ export class OrdersService {
     if (!doc) throw new NotFoundException('Order not found');
     return doc;
   }
+
+  async listAll() {
+    return this.orderModel.find().sort({ createdAt: -1 }).lean();
+  }
 }
 
 
