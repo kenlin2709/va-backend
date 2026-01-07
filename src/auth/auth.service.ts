@@ -6,6 +6,7 @@ import { CustomersService } from '../customers/customers.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 function sanitizeCustomer(c: any) {
   if (!c) return c;
@@ -66,6 +67,20 @@ export class AuthService {
 
     const customer = await this.customers.updateProfile(customerId, update);
     return { customer: sanitizeCustomer(customer) };
+  }
+
+  async changePassword(customerId: string, dto: ChangePasswordDto) {
+    const customer = await this.customers.findById(customerId);
+    if (!customer?.passwordHash) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const ok = await bcrypt.compare(dto.currentPassword, customer.passwordHash);
+    if (!ok) throw new UnauthorizedException('Current password is incorrect');
+
+    const nextHash = await bcrypt.hash(dto.newPassword, 12);
+    await this.customers.updatePasswordHash(customerId, nextHash);
+    return { updated: true };
   }
 }
 

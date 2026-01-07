@@ -4,6 +4,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentCustomer, CurrentCustomer as CurrentCustomerDecorator } from './decorators/current-customer.decorator';
 
@@ -31,6 +32,12 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   updateMe(@CurrentCustomerDecorator() customer: CurrentCustomer, @Body() dto: UpdateProfileDto) {
     return this.auth.updateMe(customer.customerId, dto);
+  }
+
+  @Patch('me/password')
+  @UseGuards(JwtAuthGuard)
+  changePassword(@CurrentCustomerDecorator() customer: CurrentCustomer, @Body() dto: ChangePasswordDto) {
+    return this.auth.changePassword(customer.customerId, dto);
   }
 }
 

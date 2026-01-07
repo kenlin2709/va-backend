@@ -54,6 +54,14 @@ export class CustomersService {
     if (!doc) throw new NotFoundException('Customer not found');
     return doc;
   }
+
+  async updatePasswordHash(customerId: string, passwordHash: string) {
+    const doc = await this.customerModel
+      .findByIdAndUpdate(customerId, { passwordHash }, { new: true, runValidators: true })
+      .lean();
+    if (!doc) throw new NotFoundException('Customer not found');
+    return doc;
+  }
 }
 
 
