@@ -103,7 +103,22 @@ export class OrdersService {
   }
 
   async listAll() {
-    return this.orderModel.find().sort({ createdAt: -1 }).lean();
+    return this.orderModel
+      .aggregate([
+        { $sort: { createdAt: -1 } },
+        {
+          $lookup: {
+            from: 'customers',
+            localField: 'customerId',
+            foreignField: '_id',
+            as: 'customer',
+          },
+        },
+        { $unwind: { path: '$customer', preserveNullAndEmptyArrays: true } },
+        { $addFields: { customerEmail: '$customer.email' } },
+        { $project: { customer: 0 } },
+      ])
+      .exec();
   }
 }
 
