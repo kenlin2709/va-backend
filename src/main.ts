@@ -5,10 +5,12 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Allow all origins for development
-  // Tighten this for production as needed.
+  // Allow specific origins for development and production
   app.enableCors({
-    origin: true, // Allow all origins
+    origin: [
+      'http://localhost:4200', // Local Angular dev server
+      'https://va-ecru.vercel.app', // Production deployment
+    ],
     credentials: true, // Allow credentials
   });
 
