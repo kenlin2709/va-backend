@@ -53,6 +53,13 @@ export class AuthService {
     return { customer: sanitizeCustomer(customer), accessToken: token };
   }
 
+  async emailExists(email: string) {
+    const normalized = String(email ?? '').toLowerCase().trim();
+    if (!normalized) throw new BadRequestException('Email is required');
+    const exists = await this.customers.emailExists(normalized);
+    return { exists };
+  }
+
   async me(customerId: string) {
     const customer = await this.customers.findById(customerId);
     return { customer: sanitizeCustomer(customer) };

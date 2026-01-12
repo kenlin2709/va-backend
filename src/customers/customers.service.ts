@@ -28,6 +28,13 @@ export class CustomersService {
     return this.customerModel.findOne({ email: email.toLowerCase().trim() }).lean();
   }
 
+  async emailExists(email: string): Promise<boolean> {
+    const normalized = email.toLowerCase().trim();
+    if (!normalized) return false;
+    const exists = await this.customerModel.exists({ email: normalized });
+    return !!exists;
+  }
+
   async create(input: CreateCustomerInput) {
     const email = input.email.toLowerCase().trim();
     const exists = await this.customerModel.exists({ email });
