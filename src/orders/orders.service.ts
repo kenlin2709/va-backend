@@ -11,6 +11,8 @@ import { Order, OrderDocument } from './schemas/order.schema';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Product, ProductDocument } from '../products/schemas/product.schema';
 import type { OrderStatus } from './schemas/order.schema';
+import { CustomersService } from '../customers/customers.service';
+import { ReferralsService } from '../referrals/referrals.service';
 
 @Injectable()
 export class OrdersService {
@@ -19,6 +21,8 @@ export class OrdersService {
     private readonly orderModel: Model<OrderDocument>,
     @InjectModel(Product.name)
     private readonly productModel: Model<ProductDocument>,
+    private readonly customers: CustomersService,
+    private readonly referrals: ReferralsService,
   ) {}
 
   async create(customerId: string, dto: CreateOrderDto) {
@@ -60,7 +64,40 @@ export class OrdersService {
     });
 
     const subtotal = items.reduce((sum, it) => sum + it.price * it.qty, 0);
-    const total = subtotal; // placeholder for shipping/tax later
+
+    let discountAmount = 0;
+    let referralCodeUsed: string | undefined;
+    let referralOwnerCustomerId: Types.ObjectId | undefined;
+    let referralProgramId: Types.ObjectId | undefined;
+    let referralDiscountType: 'percent' | 'amount' | undefined;
+    let referralDiscountValue: number | undefined;
+
+    const rawCode = String(dto.referralCode ?? '').trim();
+    if (rawCode) {
+      const code = rawCode.toUpperCase();
+      const owner = await this.customers.findByReferralCode(code);
+      if (!owner) throw new BadRequestException('Invalid referral code');
+      if (!owner.referralProgramId) throw new BadRequestException('Invalid referral code');
+
+      const program = await this.referrals.getActiveById(owner.referralProgramId);
+      if (!program) throw new BadRequestException('Invalid referral code');
+
+      referralCodeUsed = code;
+      referralOwnerCustomerId = new Types.ObjectId(String(owner._id));
+      referralProgramId = owner.referralProgramId;
+      referralDiscountType = program.discountType;
+      referralDiscountValue = program.discountValue;
+
+      if (program.discountType === 'percent') {
+        const pct = Math.max(0, Math.min(100, Number(program.discountValue)));
+        discountAmount = (subtotal * pct) / 100;
+      } else {
+        discountAmount = Math.max(0, Number(program.discountValue));
+      }
+      discountAmount = Math.min(subtotal, Math.round(discountAmount * 100) / 100);
+    }
+
+    const total = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
 
     // Generate an 8-hex public order id (retry on extremely rare collisions)
     let orderId = '';
@@ -89,6 +126,7 @@ export class OrdersService {
       customerId: new Types.ObjectId(customerId),
       items,
       subtotal,
+      discountAmount,
       total,
       status: 'pending',
       shippingName: dto.shippingName,
@@ -96,6 +134,11 @@ export class OrdersService {
       shippingCity: dto.shippingCity,
       shippingState: dto.shippingState,
       shippingPostcode: dto.shippingPostcode,
+      referralCodeUsed,
+      referralOwnerCustomerId,
+      referralProgramId,
+      referralDiscountType,
+      referralDiscountValue,
     });
   }
 
@@ -146,6 +189,15 @@ export class OrdersService {
         { $project: { customer: 0 } },
       ])
       .exec();
+  }
+
+  async listByReferralCode(code: string) {
+    const normalized = String(code ?? '').trim().toUpperCase();
+    if (!normalized) return [];
+    return this.orderModel
+      .find({ referralCodeUsed: normalized })
+      .sort({ createdAt: -1 })
+      .lean();
   }
 
   private async getEnrichedById(_id: Types.ObjectId): Promise<unknown> {

@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 
 export type CustomerDocument = HydratedDocument<Customer>;
 
@@ -55,6 +55,13 @@ export class Customer {
 
   @Prop({ type: ShippingAddressSchema, required: false })
   shippingAddress?: ShippingAddress;
+
+  // Admin-assigned referral program (discount rules) + user’s personal referral code
+  @Prop({ type: Types.ObjectId, ref: 'Referral', required: false, index: true })
+  referralProgramId?: Types.ObjectId;
+
+  @Prop({ trim: true, uppercase: true, unique: true, sparse: true, index: true })
+  referralCode?: string;
 }
 
 export const CustomerSchema = SchemaFactory.createForClass(Customer);

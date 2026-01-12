@@ -40,6 +40,10 @@ export class Order {
   @Prop({ required: true, min: 0 })
   subtotal!: number;
 
+  // Referral discount applied (if any). Total should reflect subtotal - discountAmount.
+  @Prop({ required: true, min: 0, default: 0 })
+  discountAmount!: number;
+
   @Prop({ required: true, min: 0 })
   total!: number;
 
@@ -68,6 +72,22 @@ export class Order {
 
   @Prop({ trim: true })
   trackingNumber?: string;
+
+  // Referral tracking (snapshot)
+  @Prop({ trim: true, uppercase: true, index: true })
+  referralCodeUsed?: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'Customer', required: false, index: true })
+  referralOwnerCustomerId?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'Referral', required: false, index: true })
+  referralProgramId?: Types.ObjectId;
+
+  @Prop({ enum: ['percent', 'amount'], required: false })
+  referralDiscountType?: 'percent' | 'amount';
+
+  @Prop({ required: false, min: 0 })
+  referralDiscountValue?: number;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

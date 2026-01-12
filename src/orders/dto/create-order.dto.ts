@@ -35,6 +35,10 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   shippingPostcode?: string;
+
+  @IsOptional()
+  @IsString()
+  referralCode?: string;
 }
 
 

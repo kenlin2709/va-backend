@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsEmail, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEmail, IsMongoId, IsOptional, IsString } from 'class-validator';
 
 export class UpdateCustomerDto {
   @IsOptional()
@@ -22,6 +22,10 @@ export class UpdateCustomerDto {
   @IsOptional()
   @IsBoolean()
   isAdmin?: boolean;
+
+  @IsOptional()
+  @IsMongoId()
+  referralProgramId?: string;
 }
 
 

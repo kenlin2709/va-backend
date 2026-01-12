@@ -10,6 +10,7 @@ import { UploadsModule } from './uploads/uploads.module';
 import { CustomersModule } from './customers/customers.module';
 import { AuthModule } from './auth/auth.module';
 import { OrdersModule } from './orders/orders.module';
+import { ReferralsModule } from './referrals/referrals.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { OrdersModule } from './orders/orders.module';
     CustomersModule,
     AuthModule,
     OrdersModule,
+    ReferralsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

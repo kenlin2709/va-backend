@@ -18,6 +18,7 @@ const uploads_module_1 = require("./uploads/uploads.module");
 const customers_module_1 = require("./customers/customers.module");
 const auth_module_1 = require("./auth/auth.module");
 const orders_module_1 = require("./orders/orders.module");
+const referrals_module_1 = require("./referrals/referrals.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -50,6 +51,7 @@ exports.AppModule = AppModule = __decorate([
             customers_module_1.CustomersModule,
             auth_module_1.AuthModule,
             orders_module_1.OrdersModule,
+            referrals_module_1.ReferralsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

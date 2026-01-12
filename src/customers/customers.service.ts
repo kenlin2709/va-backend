@@ -28,6 +28,12 @@ export class CustomersService {
     return this.customerModel.findOne({ email: email.toLowerCase().trim() }).lean();
   }
 
+  async findByReferralCode(code: string) {
+    const normalized = String(code ?? '').trim().toUpperCase();
+    if (!normalized) return null;
+    return this.customerModel.findOne({ referralCode: normalized }).lean();
+  }
+
   async emailExists(email: string): Promise<boolean> {
     const normalized = email.toLowerCase().trim();
     if (!normalized) return false;
