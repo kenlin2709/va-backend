@@ -33,7 +33,7 @@ async function bootstrap() {
   return initPromise;
 }
 
-export default async function handler(req: any, res: any) {
+module.exports = async (req: any, res: any) => {
   await bootstrap();
   return server(req, res);
-}
+};
