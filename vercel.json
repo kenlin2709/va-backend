@@ -2,13 +2,14 @@
   "version": 2,
   "functions": {
     "api/index.js": {
-      "maxDuration": 30
+      "runtime": "nodejs18.x",
+      "maxDuration": 10
     }
   },
-  "rewrites": [
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "/api/index.js"
+      "src": "/(.*)",
+      "dest": "/api/index.js"
     }
   ]
 }
