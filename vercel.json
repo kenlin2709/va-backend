@@ -3,4 +3,3 @@
       { "src": "/(.*)", "dest": "/api/main.ts" }
     ]
   }
-  
