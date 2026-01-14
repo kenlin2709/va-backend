@@ -8,12 +8,14 @@ import { Product, ProductSchema } from '../products/schemas/product.schema';
 import { AuthModule } from '../auth/auth.module';
 import { CustomersModule } from '../customers/customers.module';
 import { ReferralsModule } from '../referrals/referrals.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
     AuthModule,
     CustomersModule,
     ReferralsModule,
+    EmailModule,
     MongooseModule.forFeature([
       { name: Order.name, schema: OrderSchema },
       { name: Product.name, schema: ProductSchema },

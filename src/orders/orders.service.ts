@@ -13,6 +13,7 @@ import { Product, ProductDocument } from '../products/schemas/product.schema';
 import type { OrderStatus } from './schemas/order.schema';
 import { CustomersService } from '../customers/customers.service';
 import { ReferralsService } from '../referrals/referrals.service';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class OrdersService {
@@ -23,6 +24,7 @@ export class OrdersService {
     private readonly productModel: Model<ProductDocument>,
     private readonly customers: CustomersService,
     private readonly referrals: ReferralsService,
+    private readonly emailService: EmailService,
   ) {}
 
   async create(customerId: string, dto: CreateOrderDto) {
@@ -121,7 +123,7 @@ export class OrdersService {
       }
     }
 
-    return this.orderModel.create({
+    const order = await this.orderModel.create({
       orderId,
       customerId: new Types.ObjectId(customerId),
       items,
@@ -140,6 +142,45 @@ export class OrdersService {
       referralDiscountType,
       referralDiscountValue,
     });
+    console.log('order created', order);
+
+    // Send order confirmation email
+    try {
+      const customer = await this.customers.findById(customerId);
+      if (customer?.email) {
+        const customerName =
+          `${customer.firstName} ${customer.lastName}`.trim() || 'Valued Customer';
+
+        await this.emailService.sendOrderConfirmationEmail(customer.email, {
+          id: orderId,
+          total,
+          subtotal,
+          discount: discountAmount,
+          shipping: 0, // TODO: Add shipping cost calculation
+          customerName,
+          customerEmail: customer.email,
+          customerPhone: customer.phone || '',
+          shippingAddress: {
+            address1: dto.shippingAddress1 || '',
+            address2: '',
+            city: dto.shippingCity || '',
+            state: dto.shippingState || '',
+            postcode: dto.shippingPostcode || '',
+            country: 'Australia', // Default to Australia
+          },
+          items: items.map((item) => ({
+            name: item.name,
+            quantity: item.qty,
+            price: item.price,
+          })),
+        });
+      }
+    } catch (error) {
+      // Log error but don't fail the order creation
+      console.error('Failed to send order confirmation email:', error);
+    }
+
+    return order;
   }
 
   async listMine(customerId: string) {
