@@ -75,7 +75,7 @@ export class EmailService {
         <td valign="top" align="right"
             style="padding:14px 14px;${border}vertical-align:top;
                   font-size:14px;color:#111827;font-weight:600;white-space:nowrap;">
-          $${item.price.toFixed(2)}
+          $${(item.price * item.quantity).toFixed(2)}
         </td>
       </tr>`;
         })
