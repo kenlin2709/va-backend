@@ -22,6 +22,12 @@ async function bootstrap() {
     }),
   );
 
+  // For Vercel deployment, return the app instead of listening
+  if (process.env.VERCEL) {
+    return app;
+  }
+
+  // For local development, listen on port
   await app.listen(process.env.PORT ?? 3000);
 }
 

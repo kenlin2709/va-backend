@@ -1,115 +1,68 @@
-// Vercel serverless function
-const express = require('express');
-const cors = require('cors');
+// Vercel serverless function that runs the actual NestJS app
+const { NestFactory } = require('@nestjs/core');
+const { AppModule } = require('../dist/app.module');
+const { ValidationPipe } = require('@nestjs/common');
 
-// Create Express app
-const app = express();
+let nestApp;
 
-// Enable CORS
-app.use(cors({
-  origin: [
-    'http://localhost:4200',
-    'https://va-ecru.vercel.app'
-  ],
-  credentials: true,
-}));
+async function getNestApp() {
+  if (!nestApp) {
+    try {
+      console.log('Initializing NestJS app for Vercel...');
 
-// JSON parsing middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+      nestApp = await NestFactory.create(AppModule);
 
-// Health check
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Vape Lab API',
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
-  });
-});
+      // Enable CORS for frontend
+      nestApp.enableCors({
+        origin: [
+          'http://localhost:4200',
+          'https://va-ecru.vercel.app'
+        ],
+        credentials: true,
+      });
 
-// Categories endpoint (critical for homepage)
-app.get('/categories', (req, res) => {
-  // Return mock categories data for the homepage to work
-  const categories = [
-    {
-      _id: '1',
-      name: 'All Products',
-      description: 'All vape products',
-      categoryImageUrl: '/images/hero/20250618456-2-scaled.jpg'
-    },
-    {
-      _id: '2',
-      name: 'Desserts',
-      description: 'Sweet dessert flavors',
-      categoryImageUrl: '/images/hero/20250618456-4-scaled.jpg'
-    },
-    {
-      _id: '3',
-      name: 'Energy',
-      description: 'Energizing flavors',
-      categoryImageUrl: '/images/hero/54846548.jpg'
-    },
-    {
-      _id: '4',
-      name: 'Fruit',
-      description: 'Fresh fruit flavors',
-      categoryImageUrl: '/images/hero/home-2-06-2048x1158.jpg'
-    },
-    {
-      _id: '5',
-      name: 'Tobacco',
-      description: 'Classic tobacco flavors',
-      categoryImageUrl: '/images/hero/20250618456-2-scaled.jpg'
-    },
-    {
-      _id: '6',
-      name: 'Party Mix',
-      description: 'Fun party flavors',
-      categoryImageUrl: '/images/hero/54846548.jpg'
+      // Apply global pipes
+      nestApp.useGlobalPipes(
+        new ValidationPipe({
+          whitelist: true,
+          forbidNonWhitelisted: true,
+          transform: true,
+        }),
+      );
+
+      console.log('NestJS app initialized successfully');
+
+    } catch (error) {
+      console.error('Failed to initialize NestJS app:', error);
+      throw error;
     }
-  ];
+  }
+  return nestApp;
+}
 
-  res.json(categories);
-});
+// Serverless function handler
+module.exports = async (req, res) => {
+  try {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
 
-// Products endpoint (for homepage products)
-app.get('/products', (req, res) => {
-  // Return empty array for now - frontend will handle fallbacks
-  res.json([]);
-});
+    const app = await getNestApp();
 
-// Auth endpoints
-app.get('/auth/me', (req, res) => {
-  res.status(401).json({ message: 'Not authenticated' });
-});
+    // Get the Express instance from NestJS
+    const expressApp = app.getHttpAdapter().getInstance();
 
-app.post('/auth/login', (req, res) => {
-  res.status(400).json({ message: 'Authentication not available in demo mode' });
-});
+    // Handle the request
+    expressApp(req, res);
 
-app.post('/auth/register', (req, res) => {
-  res.status(400).json({ message: 'Registration not available in demo mode' });
-});
+  } catch (error) {
+    console.error('Serverless function error:', error);
 
-// Catch-all for other routes
-app.use('*', (req, res) => {
-  res.status(404).json({
-    message: 'Endpoint not implemented in demo mode',
-    path: req.path,
-    method: req.method
-  });
-});
-
-// Error handling
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({
-    statusCode: 500,
-    message: 'Internal server error',
-    error: err.message
-  });
-});
-
-// Export for Vercel
-module.exports = app;
+    if (!res.headersSent) {
+      res.status(500).json({
+        statusCode: 500,
+        message: 'Internal server error',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+};
