@@ -124,6 +124,11 @@ export class EmailService {
       this.logger.log(
         `Sending order confirmation email to ${to} for order ${orderDetails.id}`,
       );
+      console.log('serviceId', serviceId,
+        'template_id', this.configService.get<string>('EMAILJS_TEMPLATE_ID') || 'template_order_confirmation',
+        'accessToken', this.configService.get<string>('EMAILJS_ACCESS_TOKEN') || '',
+        'user_id', publicKey,
+        'template_params', templateParams);
 
       const response = await fetch(this.emailJSUrl, {
         method: 'POST',
