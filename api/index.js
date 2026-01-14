@@ -4,39 +4,57 @@ const { AppModule } = require('../dist/app.module');
 const { ValidationPipe } = require('@nestjs/common');
 
 let nestApp;
+let isInitializing = false;
 
 async function getNestApp() {
-  if (!nestApp) {
-    try {
-      console.log('Initializing NestJS app for Vercel...');
-
-      nestApp = await NestFactory.create(AppModule);
-
-      // Enable CORS for frontend
-      nestApp.enableCors({
-        origin: [
-          'http://localhost:4200',
-          'https://va-ecru.vercel.app'
-        ],
-        credentials: true,
-      });
-
-      // Apply global pipes
-      nestApp.useGlobalPipes(
-        new ValidationPipe({
-          whitelist: true,
-          forbidNonWhitelisted: true,
-          transform: true,
-        }),
-      );
-
-      console.log('NestJS app initialized successfully');
-
-    } catch (error) {
-      console.error('Failed to initialize NestJS app:', error);
-      throw error;
-    }
+  if (nestApp && !isInitializing) {
+    return nestApp;
   }
+
+  if (isInitializing) {
+    // Wait for initialization to complete
+    while (isInitializing) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return nestApp;
+  }
+
+  isInitializing = true;
+
+  try {
+    console.log('Initializing NestJS app for Vercel...');
+
+    nestApp = await NestFactory.create(AppModule, {
+      logger: ['error', 'warn'], // Reduce logging in serverless
+    });
+
+    // Enable CORS for frontend
+    nestApp.enableCors({
+      origin: [
+        'http://localhost:4200',
+        'https://va-ecru.vercel.app'
+      ],
+      credentials: true,
+    });
+
+    // Apply global pipes
+    nestApp.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+
+    console.log('NestJS app initialized successfully');
+
+  } catch (error) {
+    console.error('Failed to initialize NestJS app:', error);
+    isInitializing = false;
+    throw error;
+  }
+
+  isInitializing = false;
   return nestApp;
 }
 
