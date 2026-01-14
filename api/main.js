@@ -1,9 +1,8 @@
-import { NestFactory } from '@nestjs/core';
-import { ExpressAdapter } from '@nestjs/platform-express';
-import express from 'express';
+const express = require('express');
+const { NestFactory } = require('@nestjs/core');
+const { ExpressAdapter } = require('@nestjs/platform-express');
 
-// ⚠️ 注意：这里一定是 dist
-import { AppModule } from '../dist/app.module';
+const { AppModule } = require('../dist/app.module');
 
 const server = express();
 let isInitialized = false;
@@ -23,4 +22,4 @@ async function bootstrap() {
 
 bootstrap();
 
-export default server;
+module.exports = server;

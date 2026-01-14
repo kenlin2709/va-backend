@@ -1,5 +1,6 @@
 {
     "routes": [
-      { "src": "/(.*)", "dest": "/api/main.ts" }
+      { "src": "/(.*)", "dest": "/api/main.js" }
     ]
   }
+  
