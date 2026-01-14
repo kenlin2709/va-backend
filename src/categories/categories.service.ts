@@ -15,6 +15,7 @@ export class CategoriesService {
   ) {}
 
   async ensureDefaultCategories() {
+    console.log('ensureDefaultCategories');
     const defaults = ['Desserts', 'Fruit', 'Energy', 'Tobacco', 'Party Mix', 'All Products'];
     for (const name of defaults) {
       await this.categoryModel.updateOne({ name }, { $setOnInsert: { name } }, { upsert: true });
