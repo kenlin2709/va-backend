@@ -133,7 +133,7 @@ export class EmailService {
         body: JSON.stringify({
           service_id: serviceId,
           template_id: this.configService.get<string>('EMAILJS_TEMPLATE_ID') || 'template_order_confirmation',
-          accessToken: 'rHvMAdKXdoZU3mRZ7Gdau',
+          accessToken: this.configService.get<string>('EMAILJS_ACCESS_TOKEN') || '',
           user_id: publicKey,
           template_params: templateParams,
         }),
