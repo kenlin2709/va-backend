@@ -159,6 +159,132 @@ export class EmailService {
       // Don't throw error - we don't want email failures to break checkout
     }
   }
+
+  async sendPaymentReminderEmail(
+    to: string,
+    orderDetails: {
+      id: string;
+      total: number;
+      items: Array<{ name: string; quantity: number; price: number }>;
+      customerName: string;
+      reminderNumber: number; // 1, 2, or 3
+    },
+  ): Promise<void> {
+    try {
+      const serviceId = this.configService.get<string>('EMAILJS_SERVICE_ID');
+      const publicKey = this.configService.get<string>('EMAILJS_PUBLIC_KEY');
+
+      if (!serviceId || !publicKey) {
+        this.logger.warn('EmailJS not configured, skipping email send');
+        return;
+      }
+
+      const nameParts = orderDetails.customerName.split(' ');
+      const firstName = nameParts[0] || 'Valued Customer';
+
+      const itemsHtml = orderDetails.items
+        .map((item, index) => {
+          const isLast = index === orderDetails.items.length - 1;
+          const border = isLast ? 'border-bottom:0;' : 'border-bottom:1px solid #e5e7eb;';
+
+          return `
+      <tr>
+        <td valign="top" style="padding:14px 14px;${border}vertical-align:top;">
+          <div style="font-size:14px;color:#111827;font-weight:600;line-height:1.25;">
+            ${escapeHtml(item.name)}
+          </div>
+          <div style="margin-top:4px;font-size:12px;color:#6b7280;line-height:1.25;">
+            Quantity: ${item.quantity}
+          </div>
+        </td>
+        <td valign="top" align="right"
+            style="padding:14px 14px;${border}vertical-align:top;
+                  font-size:14px;color:#111827;font-weight:600;white-space:nowrap;">
+          $${(item.price * item.quantity).toFixed(2)}
+        </td>
+      </tr>`;
+        })
+        .join('');
+
+      const subjects = {
+        1: `Payment Required - Order #${orderDetails.id}`,
+        2: `Reminder: Payment Pending - Order #${orderDetails.id}`,
+        3: `Final Reminder: Payment Required - Order #${orderDetails.id}`,
+      };
+
+      const orderDate = new Date().toLocaleDateString('en-AU', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+
+      const templateParams = {
+        to_email: to,
+        first_name: firstName,
+        last_name: '',
+        order_number: orderDetails.id,
+        order_date: orderDate,
+        total: orderDetails.total.toFixed(2),
+        subtotal: orderDetails.total.toFixed(2),
+        discount: '0.00',
+        shipping: '0.00',
+        currency: 'AUD',
+        item_count: orderDetails.items.reduce((sum, item) => sum + item.quantity, 0),
+        items_html: itemsHtml,
+        customer_email: to,
+        customer_phone: '',
+        address1: '',
+        address2: '',
+        city: '',
+        state: '',
+        postcode: '',
+        country: 'Australia',
+        refund_policy_url: 'https://va-ecru.vercel.app/refund-policy',
+        shipping_policy_url: '#',
+        privacy_policy_url: '#',
+        terms_url: '#',
+        subject: subjects[orderDetails.reminderNumber as 1 | 2 | 3] || subjects[1],
+        year: new Date().getFullYear().toString(),
+      };
+
+      this.logger.log(
+        `Sending payment reminder #${orderDetails.reminderNumber} to ${to} for order ${orderDetails.id}`,
+      );
+
+      const response = await fetch(this.emailJSUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          service_id: serviceId,
+          template_id: this.configService.get<string>('EMAILJS_TEMPLATE_ID') || 'template_order_confirmation',
+          accessToken: this.configService.get<string>('EMAILJS_ACCESS_TOKEN') || '',
+          user_id: publicKey,
+          template_params: templateParams,
+        }),
+      });
+
+      if (response.ok) {
+        const responseData = await response.text();
+        if (responseData === 'OK') {
+          this.logger.log(
+            `Payment reminder #${orderDetails.reminderNumber} sent successfully to ${to}`,
+          );
+        } else {
+          throw new Error(`EmailJS returned unexpected response: ${responseData}`);
+        }
+      } else {
+        throw new Error(`EmailJS returned status ${response.status}`);
+      }
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to send payment reminder #${orderDetails.reminderNumber} to ${to}:`,
+        error.message,
+      );
+    }
+  }
 }
 function escapeHtml(value: string): string {
   return value

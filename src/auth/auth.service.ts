@@ -32,6 +32,7 @@ export class AuthService {
       firstName: dto.firstName,
       lastName: dto.lastName,
       phone: dto.phone,
+      referredByCode: dto.referralCode?.trim() || undefined,
     });
 
     const token = await this.jwt.signAsync({ sub: String(created._id), email });

@@ -88,6 +88,20 @@ export class Order {
 
   @Prop({ required: false, min: 0 })
   referralDiscountValue?: number;
+
+  // Coupon tracking (snapshot) - supports up to 3 coupons
+  @Prop({ type: [String], default: [] })
+  couponCodesUsed?: string[];
+
+  @Prop({ type: [Types.ObjectId], ref: 'Coupon', default: [] })
+  couponIds?: Types.ObjectId[];
+
+  @Prop({ type: [Number], default: [] })
+  couponDiscountValues?: number[];
+
+  // Total coupon discount (sum of all coupon values)
+  @Prop({ required: false, min: 0 })
+  totalCouponDiscount?: number;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

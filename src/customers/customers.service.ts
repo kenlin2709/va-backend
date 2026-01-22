@@ -1,8 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { randomBytes } from 'crypto';
 
 import { Customer, CustomerDocument } from './schemas/customer.schema';
+import { CouponsService } from '../coupons/coupons.service';
 
 type CreateCustomerInput = {
   email: string;
@@ -10,12 +12,15 @@ type CreateCustomerInput = {
   firstName?: string;
   lastName?: string;
   phone?: string;
+  referredByCode?: string;
 };
 
 @Injectable()
 export class CustomersService {
   constructor(
     @InjectModel(Customer.name) private readonly customerModel: Model<CustomerDocument>,
+    @Inject(forwardRef(() => CouponsService))
+    private readonly couponsService: CouponsService,
   ) {}
 
   async findById(id: string) {
@@ -41,18 +46,77 @@ export class CustomersService {
     return !!exists;
   }
 
+  private async generateUniqueReferralCode(): Promise<string> {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const code = randomBytes(4).toString('hex').toUpperCase();
+      const exists = await this.customerModel.exists({ referralCode: code });
+      if (!exists) return code;
+    }
+    throw new BadRequestException('Failed to generate unique referral code');
+  }
+
   async create(input: CreateCustomerInput) {
     const email = input.email.toLowerCase().trim();
     const exists = await this.customerModel.exists({ email });
     if (exists) throw new BadRequestException('Email already registered');
 
-    return this.customerModel.create({
+    // Generate unique referral code for this customer
+    const referralCode = await this.generateUniqueReferralCode();
+
+    // Check if referred by another customer
+    let referrer: (Customer & { _id: any }) | null = null;
+    if (input.referredByCode) {
+      referrer = await this.findByReferralCode(input.referredByCode);
+    }
+
+    const customer = await this.customerModel.create({
       email,
       passwordHash: input.passwordHash,
       firstName: input.firstName,
       lastName: input.lastName,
       phone: input.phone,
+      referralCode,
     });
+
+    const oneYearFromNow = new Date();
+    oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+
+    // Create welcome coupon ($5, expires in 1 year)
+    try {
+      await this.couponsService.create({
+        customerId: String(customer._id),
+        value: 5,
+        description: 'Welcome bonus',
+        expiryDate: oneYearFromNow.toISOString(),
+      });
+    } catch (error) {
+      console.error('Failed to create welcome coupon:', error);
+    }
+
+    // If referred, create $2 coupons for both users
+    if (referrer) {
+      try {
+        // Coupon for the new user (referred)
+        await this.couponsService.create({
+          customerId: String(customer._id),
+          value: 2,
+          description: 'Referral bonus',
+          expiryDate: oneYearFromNow.toISOString(),
+        });
+
+        // Coupon for the referrer
+        await this.couponsService.create({
+          customerId: String(referrer._id),
+          value: 2,
+          description: `Referral bonus - referred ${email}`,
+          expiryDate: oneYearFromNow.toISOString(),
+        });
+      } catch (error) {
+        console.error('Failed to create referral coupons:', error);
+      }
+    }
+
+    return customer;
   }
 
   async updateProfile(customerId: string, update: Partial<Customer>) {

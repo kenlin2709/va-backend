@@ -14,9 +14,13 @@ import type { OrderStatus } from './schemas/order.schema';
 import { CustomersService } from '../customers/customers.service';
 import { ReferralsService } from '../referrals/referrals.service';
 import { EmailService } from '../email/email.service';
+import { CouponsService } from '../coupons/coupons.service';
 
 @Injectable()
 export class OrdersService {
+  // Store scheduled email reminder timers by orderId
+  private readonly emailReminderTimers = new Map<string, NodeJS.Timeout[]>();
+
   constructor(
     @InjectModel(Order.name)
     private readonly orderModel: Model<OrderDocument>,
@@ -25,6 +29,7 @@ export class OrdersService {
     private readonly customers: CustomersService,
     private readonly referrals: ReferralsService,
     private readonly emailService: EmailService,
+    private readonly couponsService: CouponsService,
   ) {}
 
   async create(customerId: string, dto: CreateOrderDto) {
@@ -99,6 +104,31 @@ export class OrdersService {
       discountAmount = Math.min(subtotal, Math.round(discountAmount * 100) / 100);
     }
 
+    // Coupon discounts (up to 3)
+    const couponCodesUsed: string[] = [];
+    const couponIds: Types.ObjectId[] = [];
+    const couponDiscountValues: number[] = [];
+    let totalCouponDiscount = 0;
+
+    const couponCodes = (dto.couponCodes ?? []).slice(0, 3); // Limit to 3 coupons
+    for (const rawCode of couponCodes) {
+      const code = String(rawCode ?? '').trim();
+      if (!code) continue;
+
+      const coupon = await this.couponsService.validateCoupon(code, customerId);
+
+      couponCodesUsed.push(coupon.code);
+      couponIds.push(new Types.ObjectId(String(coupon._id)));
+      couponDiscountValues.push(coupon.value);
+
+      // Add coupon discount (fixed amount)
+      const remaining = subtotal - discountAmount;
+      const thisDiscount = Math.min(remaining, coupon.value);
+      totalCouponDiscount += thisDiscount;
+      discountAmount += thisDiscount;
+      discountAmount = Math.round(discountAmount * 100) / 100;
+    }
+
     const total = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
 
     // Generate an 8-hex public order id (retry on extremely rare collisions)
@@ -141,46 +171,96 @@ export class OrdersService {
       referralProgramId,
       referralDiscountType,
       referralDiscountValue,
+      couponCodesUsed,
+      couponIds,
+      couponDiscountValues,
+      totalCouponDiscount,
     });
     console.log('order created', order);
 
-    // Send order confirmation email
-    try {
-      const customer = await this.customers.findById(customerId);
-      if (customer?.email) {
-        const customerName =
-          `${customer.firstName} ${customer.lastName}`.trim() || 'Valued Customer';
-
-        await this.emailService.sendOrderConfirmationEmail(customer.email, {
-          id: orderId,
-          total,
-          subtotal,
-          discount: discountAmount,
-          shipping: 0, // TODO: Add shipping cost calculation
-          customerName,
-          customerEmail: customer.email,
-          customerPhone: customer.phone || '',
-          shippingAddress: {
-            address1: dto.shippingAddress1 || '',
-            address2: '',
-            city: dto.shippingCity || '',
-            state: dto.shippingState || '',
-            postcode: dto.shippingPostcode || '',
-            country: 'Australia', // Default to Australia
-          },
-          items: items.map((item) => ({
-            name: item.name,
-            quantity: item.qty,
-            price: item.price,
-          })),
-        });
-      }
-    } catch (error) {
-      // Log error but don't fail the order creation
-      console.error('Failed to send order confirmation email:', error);
+    // Mark all coupons as used
+    for (const cId of couponIds) {
+      await this.couponsService.markAsUsed(cId, order._id as Types.ObjectId);
     }
 
+    // Send payment reminder emails (instant, 1 min, 2 min)
+    this.sendPaymentReminderEmails(customerId, orderId, total, items).catch((error) => {
+      console.error('Failed to send payment reminder emails:', error);
+    });
+
     return order;
+  }
+
+  private async sendPaymentReminderEmails(
+    customerId: string,
+    orderId: string,
+    total: number,
+    items: Array<{ name: string; qty: number; price: number }>,
+  ): Promise<void> {
+    const customer = await this.customers.findById(customerId);
+    if (!customer?.email) return;
+
+    const customerName =
+      `${customer.firstName} ${customer.lastName}`.trim() || 'Valued Customer';
+
+    const emailData = {
+      id: orderId,
+      total,
+      customerName,
+      items: items.map((item) => ({
+        name: item.name,
+        quantity: item.qty,
+        price: item.price,
+      })),
+    };
+
+    // Send first email immediately
+    await this.emailService.sendPaymentReminderEmail(customer.email, {
+      ...emailData,
+      reminderNumber: 1,
+    });
+
+    const timers: NodeJS.Timeout[] = [];
+
+    // Send second email after 1 minute
+    const timer2 = setTimeout(async () => {
+      try {
+        await this.emailService.sendPaymentReminderEmail(customer.email, {
+          ...emailData,
+          reminderNumber: 2,
+        });
+      } catch (error) {
+        console.error('Failed to send payment reminder #2:', error);
+      }
+    }, 60 * 1000); // 1 minute
+    timers.push(timer2);
+
+    // Send third email after 2 minutes
+    const timer3 = setTimeout(async () => {
+      try {
+        await this.emailService.sendPaymentReminderEmail(customer.email, {
+          ...emailData,
+          reminderNumber: 3,
+        });
+      } catch (error) {
+        console.error('Failed to send payment reminder #3:', error);
+      }
+      // Clean up timers after all emails are sent
+      this.emailReminderTimers.delete(orderId);
+    }, 2 * 60 * 1000); // 2 minutes
+    timers.push(timer3);
+
+    // Store timers for this order
+    this.emailReminderTimers.set(orderId, timers);
+  }
+
+  private cancelEmailReminders(orderId: string): void {
+    const timers = this.emailReminderTimers.get(orderId);
+    if (timers) {
+      timers.forEach((timer) => clearTimeout(timer));
+      this.emailReminderTimers.delete(orderId);
+      console.log(`Cancelled email reminders for order ${orderId}`);
+    }
   }
 
   async listMine(customerId: string) {
@@ -277,10 +357,15 @@ export class OrdersService {
   async updateStatus(id: string, status: OrderStatus): Promise<unknown> {
     const _id = new Types.ObjectId(id);
 
-    const exists = await this.orderModel.exists({ _id });
-    if (!exists) throw new NotFoundException('Order not found');
+    const order = await this.orderModel.findById(_id).lean();
+    if (!order) throw new NotFoundException('Order not found');
 
     await this.orderModel.updateOne({ _id }, { $set: { status } });
+
+    // Cancel pending email reminders if order is paid or shipped
+    if (status === 'paid' || status === 'shipped') {
+      this.cancelEmailReminders(order.orderId);
+    }
 
     const doc = await this.getEnrichedById(_id);
     if (!doc) throw new NotFoundException('Order not found');

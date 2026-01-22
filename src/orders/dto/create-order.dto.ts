@@ -39,6 +39,11 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   referralCode?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  couponCodes?: string[];
 }
 
 

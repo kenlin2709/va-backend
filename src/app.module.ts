@@ -12,6 +12,7 @@ import { AuthModule } from './auth/auth.module';
 import { OrdersModule } from './orders/orders.module';
 import { ReferralsModule } from './referrals/referrals.module';
 import { EmailModule } from './email/email.module';
+import { CouponsModule } from './coupons/coupons.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { EmailModule } from './email/email.module';
     OrdersModule,
     ReferralsModule,
     EmailModule,
+    CouponsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
