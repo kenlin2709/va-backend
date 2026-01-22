@@ -165,6 +165,8 @@ export class EmailService {
     orderDetails: {
       id: string;
       total: number;
+      subtotal: number;
+      couponDiscount: number;
       items: Array<{ name: string; quantity: number; price: number }>;
       customerName: string;
       reminderNumber: number; // 1, 2, or 3
@@ -226,8 +228,8 @@ export class EmailService {
         order_number: orderDetails.id,
         order_date: orderDate,
         total: orderDetails.total.toFixed(2),
-        subtotal: orderDetails.total.toFixed(2),
-        discount: '0.00',
+        subtotal: orderDetails.subtotal.toFixed(2),
+        discount: orderDetails.couponDiscount.toFixed(2),
         shipping: '0.00',
         currency: 'AUD',
         item_count: orderDetails.items.reduce((sum, item) => sum + item.quantity, 0),

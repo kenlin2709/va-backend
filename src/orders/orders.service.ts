@@ -184,7 +184,7 @@ export class OrdersService {
     }
 
     // Send payment reminder emails (instant, 1 min, 2 min)
-    this.sendPaymentReminderEmails(customerId, orderId, total, items).catch((error) => {
+    this.sendPaymentReminderEmails(customerId, orderId, total, subtotal, totalCouponDiscount, items).catch((error) => {
       console.error('Failed to send payment reminder emails:', error);
     });
 
@@ -195,6 +195,8 @@ export class OrdersService {
     customerId: string,
     orderId: string,
     total: number,
+    subtotal: number,
+    couponDiscount: number,
     items: Array<{ name: string; qty: number; price: number }>,
   ): Promise<void> {
     const customer = await this.customers.findById(customerId);
@@ -206,6 +208,8 @@ export class OrdersService {
     const emailData = {
       id: orderId,
       total,
+      subtotal,
+      couponDiscount,
       customerName,
       items: items.map((item) => ({
         name: item.name,
