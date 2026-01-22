@@ -102,6 +102,10 @@ export class Order {
   // Total coupon discount (sum of all coupon values)
   @Prop({ required: false, min: 0 })
   totalCouponDiscount?: number;
+
+  // QStash message IDs for scheduled email reminders (for cancellation)
+  @Prop({ type: [String], default: [] })
+  qstashMessageIds?: string[];
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

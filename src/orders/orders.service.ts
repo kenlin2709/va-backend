@@ -183,7 +183,15 @@ export class OrdersService {
     }
 
     // Send payment reminder emails (instant, 1 min, 2 min)
-    this.sendPaymentReminderEmails(customerId, orderId, total, subtotal, totalCouponDiscount, items).catch((error) => {
+    this.sendPaymentReminderEmails(
+      order._id as Types.ObjectId,
+      customerId,
+      orderId,
+      total,
+      subtotal,
+      totalCouponDiscount,
+      items,
+    ).catch((error) => {
       console.error('Failed to send payment reminder emails:', error);
     });
 
@@ -191,6 +199,7 @@ export class OrdersService {
   }
 
   private async sendPaymentReminderEmails(
+    mongoId: Types.ObjectId,
     customerId: string,
     orderId: string,
     total: number,
@@ -218,13 +227,15 @@ export class OrdersService {
     };
 
     // Send first email immediately
-    await this.emailService.sendPaymentReminderEmail(customer.email, {
+    void this.emailService.sendPaymentReminderEmail(customer.email, {
       ...emailData,
       reminderNumber: 1,
     });
 
-    // Schedule second email after 1 minute via QStash
-    await this.qstashService.scheduleEmail(
+    // Schedule second and third emails via QStash and collect message IDs
+    const qstashMessageIds: string[] = [];
+
+    const messageId2 = await this.qstashService.scheduleEmail(
       {
         type: 'payment_reminder',
         email: customer.email,
@@ -232,9 +243,9 @@ export class OrdersService {
       },
       60, // 1 minute in seconds
     );
+    if (messageId2) qstashMessageIds.push(messageId2);
 
-    // Schedule third email after 2 minutes via QStash
-    await this.qstashService.scheduleEmail(
+    const messageId3 = await this.qstashService.scheduleEmail(
       {
         type: 'payment_reminder',
         email: customer.email,
@@ -242,6 +253,15 @@ export class OrdersService {
       },
       120, // 2 minutes in seconds
     );
+    if (messageId3) qstashMessageIds.push(messageId3);
+
+    // Store message IDs in the order for later cancellation
+    if (qstashMessageIds.length > 0) {
+      await this.orderModel.updateOne(
+        { _id: mongoId },
+        { $set: { qstashMessageIds } },
+      );
+    }
   }
 
   async listMine(customerId: string) {
@@ -343,8 +363,18 @@ export class OrdersService {
 
     await this.orderModel.updateOne({ _id }, { $set: { status } });
 
-    // Note: QStash scheduled emails will check order status before sending
-    // and skip if the order is already paid/shipped
+    // Cancel scheduled email reminders if order is paid or shipped
+    if (
+      (status === 'paid' || status === 'shipped') &&
+      order.qstashMessageIds?.length
+    ) {
+      await this.qstashService.cancelMessages(order.qstashMessageIds);
+      // Clear the message IDs from the order
+      await this.orderModel.updateOne(
+        { _id },
+        { $set: { qstashMessageIds: [] } },
+      );
+    }
 
     const doc = await this.getEnrichedById(_id);
     if (!doc) throw new NotFoundException('Order not found');
