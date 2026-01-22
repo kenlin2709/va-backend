@@ -13,6 +13,8 @@ import { OrdersModule } from './orders/orders.module';
 import { ReferralsModule } from './referrals/referrals.module';
 import { EmailModule } from './email/email.module';
 import { CouponsModule } from './coupons/coupons.module';
+import { QstashModule } from './qstash/qstash.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -59,6 +61,8 @@ import { CouponsModule } from './coupons/coupons.module';
     ReferralsModule,
     EmailModule,
     CouponsModule,
+    QstashModule,
+    WebhooksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

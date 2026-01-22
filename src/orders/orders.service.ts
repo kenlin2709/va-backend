@@ -15,12 +15,10 @@ import { CustomersService } from '../customers/customers.service';
 import { ReferralsService } from '../referrals/referrals.service';
 import { EmailService } from '../email/email.service';
 import { CouponsService } from '../coupons/coupons.service';
+import { QstashService } from '../qstash/qstash.service';
 
 @Injectable()
 export class OrdersService {
-  // Store scheduled email reminder timers by orderId
-  private readonly emailReminderTimers = new Map<string, NodeJS.Timeout[]>();
-
   constructor(
     @InjectModel(Order.name)
     private readonly orderModel: Model<OrderDocument>,
@@ -30,6 +28,7 @@ export class OrdersService {
     private readonly referrals: ReferralsService,
     private readonly emailService: EmailService,
     private readonly couponsService: CouponsService,
+    private readonly qstashService: QstashService,
   ) {}
 
   async create(customerId: string, dto: CreateOrderDto) {
@@ -224,47 +223,25 @@ export class OrdersService {
       reminderNumber: 1,
     });
 
-    const timers: NodeJS.Timeout[] = [];
+    // Schedule second email after 1 minute via QStash
+    await this.qstashService.scheduleEmail(
+      {
+        type: 'payment_reminder',
+        email: customer.email,
+        orderDetails: { ...emailData, reminderNumber: 2 },
+      },
+      60, // 1 minute in seconds
+    );
 
-    // Send second email after 1 minute
-    const timer2 = setTimeout(async () => {
-      try {
-        await this.emailService.sendPaymentReminderEmail(customer.email, {
-          ...emailData,
-          reminderNumber: 2,
-        });
-      } catch (error) {
-        console.error('Failed to send payment reminder #2:', error);
-      }
-    }, 60 * 1000); // 1 minute
-    timers.push(timer2);
-
-    // Send third email after 2 minutes
-    const timer3 = setTimeout(async () => {
-      try {
-        await this.emailService.sendPaymentReminderEmail(customer.email, {
-          ...emailData,
-          reminderNumber: 3,
-        });
-      } catch (error) {
-        console.error('Failed to send payment reminder #3:', error);
-      }
-      // Clean up timers after all emails are sent
-      this.emailReminderTimers.delete(orderId);
-    }, 2 * 60 * 1000); // 2 minutes
-    timers.push(timer3);
-
-    // Store timers for this order
-    this.emailReminderTimers.set(orderId, timers);
-  }
-
-  private cancelEmailReminders(orderId: string): void {
-    const timers = this.emailReminderTimers.get(orderId);
-    if (timers) {
-      timers.forEach((timer) => clearTimeout(timer));
-      this.emailReminderTimers.delete(orderId);
-      console.log(`Cancelled email reminders for order ${orderId}`);
-    }
+    // Schedule third email after 2 minutes via QStash
+    await this.qstashService.scheduleEmail(
+      {
+        type: 'payment_reminder',
+        email: customer.email,
+        orderDetails: { ...emailData, reminderNumber: 3 },
+      },
+      120, // 2 minutes in seconds
+    );
   }
 
   async listMine(customerId: string) {
@@ -366,10 +343,8 @@ export class OrdersService {
 
     await this.orderModel.updateOne({ _id }, { $set: { status } });
 
-    // Cancel pending email reminders if order is paid or shipped
-    if (status === 'paid' || status === 'shipped') {
-      this.cancelEmailReminders(order.orderId);
-    }
+    // Note: QStash scheduled emails will check order status before sending
+    // and skip if the order is already paid/shipped
 
     const doc = await this.getEnrichedById(_id);
     if (!doc) throw new NotFoundException('Order not found');

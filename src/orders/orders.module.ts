@@ -10,6 +10,7 @@ import { CustomersModule } from '../customers/customers.module';
 import { ReferralsModule } from '../referrals/referrals.module';
 import { EmailModule } from '../email/email.module';
 import { CouponsModule } from '../coupons/coupons.module';
+import { QstashModule } from '../qstash/qstash.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { CouponsModule } from '../coupons/coupons.module';
     ReferralsModule,
     EmailModule,
     CouponsModule,
+    QstashModule,
     MongooseModule.forFeature([
       { name: Order.name, schema: OrderSchema },
       { name: Product.name, schema: ProductSchema },
