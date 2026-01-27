@@ -46,6 +46,10 @@ export class CustomersService {
     return !!exists;
   }
 
+  async count(): Promise<number> {
+    return this.customerModel.countDocuments();
+  }
+
   private async generateUniqueReferralCode(): Promise<string> {
     for (let attempt = 0; attempt < 5; attempt++) {
       const code = randomBytes(4).toString('hex').toUpperCase();

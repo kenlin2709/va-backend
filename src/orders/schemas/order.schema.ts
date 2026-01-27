@@ -3,7 +3,7 @@ import { HydratedDocument, Types } from 'mongoose';
 
 export type OrderDocument = HydratedDocument<Order>;
 
-export type OrderStatus = 'pending' | 'paid' | 'shipped';
+export type OrderStatus = 'pending' | 'paid' | 'shipped' | 'canceled' | 'refunded';
 
 @Schema({ _id: false })
 export class OrderItem {

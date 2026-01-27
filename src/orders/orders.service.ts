@@ -10,6 +10,7 @@ import { randomBytes } from 'crypto';
 import { Order, OrderDocument } from './schemas/order.schema';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Product, ProductDocument } from '../products/schemas/product.schema';
+import { Category, CategoryDocument } from '../categories/schemas/category.schema';
 import type { OrderStatus } from './schemas/order.schema';
 import { CustomersService } from '../customers/customers.service';
 import { ReferralsService } from '../referrals/referrals.service';
@@ -24,6 +25,8 @@ export class OrdersService {
     private readonly orderModel: Model<OrderDocument>,
     @InjectModel(Product.name)
     private readonly productModel: Model<ProductDocument>,
+    @InjectModel(Category.name)
+    private readonly categoryModel: Model<CategoryDocument>,
     private readonly customers: CustomersService,
     private readonly referrals: ReferralsService,
     private readonly emailService: EmailService,
@@ -282,6 +285,40 @@ export class OrdersService {
     return doc;
   }
 
+  async cancelMine(customerId: string, orderId: string) {
+    const _id = new Types.ObjectId(orderId);
+    const order = await this.orderModel
+      .findOne({
+        _id,
+        customerId: new Types.ObjectId(customerId),
+      })
+      .lean();
+
+    if (!order) throw new NotFoundException('Order not found');
+
+    if (order.status !== 'pending') {
+      throw new BadRequestException('Only pending orders can be canceled');
+    }
+
+    await this.orderModel.updateOne({ _id }, { $set: { status: 'canceled' } });
+
+    // Cancel scheduled email reminders
+    if (order.qstashMessageIds?.length) {
+      await this.qstashService.cancelMessages(order.qstashMessageIds);
+      await this.orderModel.updateOne({ _id }, { $set: { qstashMessageIds: [] } });
+    }
+
+    // Restore stock for canceled items
+    for (const item of order.items) {
+      await this.productModel.updateOne(
+        { _id: item.productId },
+        { $inc: { stockQty: item.qty } },
+      );
+    }
+
+    return this.orderModel.findById(_id).lean();
+  }
+
   async listAll() {
     return this.orderModel
       .aggregate([
@@ -379,6 +416,238 @@ export class OrdersService {
     const doc = await this.getEnrichedById(_id);
     if (!doc) throw new NotFoundException('Order not found');
     return doc;
+  }
+
+  async getSalesAnalytics() {
+    // Monthly sales aggregation
+    const monthlyStats = await this.orderModel.aggregate([
+      {
+        $group: {
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' },
+          },
+          totalSalesValue: {
+            $sum: {
+              $cond: [{ $in: ['$status', ['paid', 'shipped']] }, '$subtotal', 0],
+            },
+          },
+          totalCouponUsed: {
+            $sum: {
+              $cond: [
+                { $in: ['$status', ['paid', 'shipped']] },
+                { $ifNull: ['$totalCouponDiscount', 0] },
+                0,
+              ],
+            },
+          },
+          totalMoneyReceived: {
+            $sum: {
+              $cond: [{ $in: ['$status', ['paid', 'shipped']] }, '$total', 0],
+            },
+          },
+          canceledValue: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'canceled'] }, '$total', 0],
+            },
+          },
+          refundValue: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'refunded'] }, '$total', 0],
+            },
+          },
+          orderCount: { $sum: 1 },
+        },
+      },
+      { $sort: { '_id.year': -1, '_id.month': -1 } },
+      {
+        $project: {
+          _id: 0,
+          year: '$_id.year',
+          month: '$_id.month',
+          totalSalesValue: { $round: ['$totalSalesValue', 2] },
+          totalCouponUsed: { $round: ['$totalCouponUsed', 2] },
+          totalMoneyReceived: { $round: ['$totalMoneyReceived', 2] },
+          canceledValue: { $round: ['$canceledValue', 2] },
+          refundValue: { $round: ['$refundValue', 2] },
+          orderCount: 1,
+        },
+      },
+    ]);
+
+    // Category sales aggregation
+    const categoryStats = await this.orderModel.aggregate([
+      // Only include paid/shipped/canceled/refunded orders for category stats
+      { $match: { status: { $in: ['paid', 'shipped', 'canceled', 'refunded'] } } },
+      // Unwind order items
+      { $unwind: '$items' },
+      // Lookup product to get categoryIds
+      {
+        $lookup: {
+          from: 'products',
+          localField: 'items.productId',
+          foreignField: '_id',
+          as: 'product',
+        },
+      },
+      { $unwind: { path: '$product', preserveNullAndEmptyArrays: true } },
+      // Get categoryIds (use legacy categoryId if categoryIds is empty)
+      {
+        $addFields: {
+          categoryIdList: {
+            $cond: {
+              if: { $gt: [{ $size: { $ifNull: ['$product.categoryIds', []] } }, 0] },
+              then: '$product.categoryIds',
+              else: {
+                $cond: {
+                  if: { $ne: ['$product.categoryId', null] },
+                  then: ['$product.categoryId'],
+                  else: [],
+                },
+              },
+            },
+          },
+          itemTotal: { $multiply: ['$items.price', '$items.qty'] },
+          itemCouponShare: {
+            $multiply: [
+              { $divide: [{ $multiply: ['$items.price', '$items.qty'] }, { $max: ['$subtotal', 1] }] },
+              { $ifNull: ['$totalCouponDiscount', 0] },
+            ],
+          },
+        },
+      },
+      // Unwind categoryIds to create a row per category
+      { $unwind: { path: '$categoryIdList', preserveNullAndEmptyArrays: true } },
+      // Lookup category name
+      {
+        $lookup: {
+          from: 'categories',
+          localField: 'categoryIdList',
+          foreignField: '_id',
+          as: 'category',
+        },
+      },
+      { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
+      // Group by category
+      {
+        $group: {
+          _id: {
+            categoryId: '$categoryIdList',
+            categoryName: { $ifNull: ['$category.name', 'Uncategorized'] },
+          },
+          totalSalesValue: {
+            $sum: {
+              $cond: [{ $in: ['$status', ['paid', 'shipped']] }, '$itemTotal', 0],
+            },
+          },
+          totalCouponUsed: {
+            $sum: {
+              $cond: [{ $in: ['$status', ['paid', 'shipped']] }, '$itemCouponShare', 0],
+            },
+          },
+          totalMoneyReceived: {
+            $sum: {
+              $cond: [
+                { $in: ['$status', ['paid', 'shipped']] },
+                { $subtract: ['$itemTotal', '$itemCouponShare'] },
+                0,
+              ],
+            },
+          },
+          canceledValue: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'canceled'] }, '$itemTotal', 0],
+            },
+          },
+          refundValue: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'refunded'] }, '$itemTotal', 0],
+            },
+          },
+        },
+      },
+      { $sort: { totalSalesValue: -1 } },
+      {
+        $project: {
+          _id: 0,
+          categoryId: '$_id.categoryId',
+          categoryName: '$_id.categoryName',
+          totalSalesValue: { $round: ['$totalSalesValue', 2] },
+          totalCouponUsed: { $round: ['$totalCouponUsed', 2] },
+          totalMoneyReceived: { $round: ['$totalMoneyReceived', 2] },
+          canceledValue: { $round: ['$canceledValue', 2] },
+          refundValue: { $round: ['$refundValue', 2] },
+        },
+      },
+    ]);
+
+    return { monthlyStats, categoryStats };
+  }
+
+  async getDashboardStats() {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // Product stats
+    const productCount = await this.productModel.countDocuments();
+    const lowStockCount = await this.productModel.countDocuments({ stockQty: { $gt: 0, $lt: 10 } });
+    const outOfStockCount = await this.productModel.countDocuments({ stockQty: 0 });
+
+    // Category stats
+    const categoryCount = await this.categoryModel.countDocuments();
+
+    // Customer stats
+    const customerCount = await this.customers.count();
+
+    // Order stats
+    const orderStats = await this.orderModel.aggregate([
+      {
+        $facet: {
+          total: [{ $count: 'count' }],
+          thisMonth: [
+            { $match: { createdAt: { $gte: startOfMonth } } },
+            { $count: 'count' },
+          ],
+          pending: [
+            { $match: { status: 'pending' } },
+            { $count: 'count' },
+          ],
+          revenue: [
+            { $match: { status: { $in: ['paid', 'shipped'] } } },
+            { $group: { _id: null, total: { $sum: '$total' } } },
+          ],
+          revenueThisMonth: [
+            { $match: { status: { $in: ['paid', 'shipped'] }, createdAt: { $gte: startOfMonth } } },
+            { $group: { _id: null, total: { $sum: '$total' } } },
+          ],
+        },
+      },
+    ]);
+
+    const stats = orderStats[0];
+
+    return {
+      products: {
+        total: productCount,
+        lowStock: lowStockCount,
+        outOfStock: outOfStockCount,
+      },
+      categories: {
+        total: categoryCount,
+      },
+      customers: {
+        total: customerCount,
+      },
+      orders: {
+        total: stats.total[0]?.count ?? 0,
+        thisMonth: stats.thisMonth[0]?.count ?? 0,
+        pending: stats.pending[0]?.count ?? 0,
+      },
+      revenue: {
+        total: Math.round((stats.revenue[0]?.total ?? 0) * 100) / 100,
+        thisMonth: Math.round((stats.revenueThisMonth[0]?.total ?? 0) * 100) / 100,
+      },
+    };
   }
 
   async updateShipment(

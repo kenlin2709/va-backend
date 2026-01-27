@@ -35,6 +35,20 @@ export class OrdersController {
     return this.orders.listAll();
   }
 
+  @Get('sales')
+  async getSalesAnalytics(@CurrentCustomerDecorator() customer: CurrentCustomer) {
+    const c = await this.customers.findById(customer.customerId);
+    if (!c.isAdmin) throw new ForbiddenException('Admin only');
+    return this.orders.getSalesAnalytics();
+  }
+
+  @Get('dashboard')
+  async getDashboardStats(@CurrentCustomerDecorator() customer: CurrentCustomer) {
+    const c = await this.customers.findById(customer.customerId);
+    if (!c.isAdmin) throw new ForbiddenException('Admin only');
+    return this.orders.getDashboardStats();
+  }
+
   @Get('referral/:code')
   async listByReferral(
     @CurrentCustomerDecorator() customer: CurrentCustomer,
@@ -113,6 +127,11 @@ export class OrdersController {
   @Get('my/:id')
   getMine(@CurrentCustomerDecorator() customer: CurrentCustomer, @Param('id') id: string) {
     return this.orders.getMine(customer.customerId, id);
+  }
+
+  @Patch('my/:id/cancel')
+  cancelMine(@CurrentCustomerDecorator() customer: CurrentCustomer, @Param('id') id: string) {
+    return this.orders.cancelMine(customer.customerId, id);
   }
 }
 
