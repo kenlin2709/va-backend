@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, UnauthorizedException, forwardRef } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 
 import { CustomersService } from '../customers/customers.service';
+import { EmailVerificationService } from './email-verification.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -19,11 +20,19 @@ export class AuthService {
   constructor(
     private readonly customers: CustomersService,
     private readonly jwt: JwtService,
+    @Inject(forwardRef(() => EmailVerificationService))
+    private readonly emailVerification: EmailVerificationService,
   ) {}
 
   async register(dto: RegisterDto) {
     const email = dto.email.toLowerCase().trim();
     if (!email) throw new BadRequestException('Email is required');
+
+    // Validate verification token
+    const isValid = await this.emailVerification.validateToken(email, dto.verificationToken);
+    if (!isValid) {
+      throw new BadRequestException('Email verification expired or invalid. Please start over.');
+    }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
     const created = await this.customers.create({
@@ -33,6 +42,7 @@ export class AuthService {
       lastName: dto.lastName,
       phone: dto.phone,
       referredByCode: dto.referralCode?.trim() || undefined,
+      shippingAddress: dto.shippingAddress,
     });
 
     const token = await this.jwt.signAsync({ sub: String(created._id), email });

@@ -287,6 +287,58 @@ export class EmailService {
       );
     }
   }
+
+  async sendVerificationEmail(to: string, code: string): Promise<void> {
+    try {
+      const serviceId = this.configService.get<string>('EMAILJS_SERVICE_ID');
+      const publicKey = this.configService.get<string>('EMAILJS_PUBLIC_KEY');
+
+      if (!serviceId || !publicKey) {
+        this.logger.warn('EmailJS not configured, skipping verification email');
+        return;
+      }
+
+      const templateParams = {
+        to_email: to,
+        verification_code: code,
+        expiry_minutes: '10',
+        year: new Date().getFullYear().toString(),
+        subject: `Your verification code is ${code}`,
+      };
+
+      this.logger.log(`Sending verification email to ${to}`);
+
+      const response = await fetch(this.emailJSUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          service_id: serviceId,
+          template_id:
+            this.configService.get<string>('EMAILJS_VERIFICATION_TEMPLATE_ID') ||
+            'template_verification_code',
+          accessToken: this.configService.get<string>('EMAILJS_ACCESS_TOKEN') || '',
+          user_id: publicKey,
+          template_params: templateParams,
+        }),
+      });
+
+      if (response.ok) {
+        const responseData = await response.text();
+        if (responseData === 'OK') {
+          this.logger.log(`Verification email sent successfully to ${to}`);
+        } else {
+          throw new Error(`EmailJS returned unexpected response: ${responseData}`);
+        }
+      } else {
+        throw new Error(`EmailJS returned status ${response.status}`);
+      }
+    } catch (error: any) {
+      this.logger.error(`Failed to send verification email to ${to}:`, error.message);
+      throw error; // Re-throw for verification flow - this should fail if email doesn't send
+    }
+  }
 }
 function escapeHtml(value: string): string {
   return value

@@ -13,6 +13,16 @@ type CreateCustomerInput = {
   lastName?: string;
   phone?: string;
   referredByCode?: string;
+  shippingAddress?: {
+    fullName?: string;
+    phone?: string;
+    address1?: string;
+    address2?: string;
+    city?: string;
+    state?: string;
+    postcode?: string;
+    country?: string;
+  };
 };
 
 @Injectable()
@@ -80,6 +90,7 @@ export class CustomersService {
       lastName: input.lastName,
       phone: input.phone,
       referralCode,
+      shippingAddress: input.shippingAddress,
     });
 
     const oneYearFromNow = new Date();

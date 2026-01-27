@@ -2,17 +2,25 @@ import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
 
 import { CustomersModule } from '../customers/customers.module';
+import { EmailModule } from '../email/email.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { EmailVerificationService } from './email-verification.service';
 import { JwtStrategy } from './jwt.strategy';
 import { AdminGuard } from './guards/admin.guard';
+import { EmailVerification, EmailVerificationSchema } from './schemas/email-verification.schema';
 
 @Module({
   imports: [
     forwardRef(() => CustomersModule),
+    EmailModule,
     PassportModule,
+    MongooseModule.forFeature([
+      { name: EmailVerification.name, schema: EmailVerificationSchema },
+    ]),
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -24,7 +32,7 @@ import { AdminGuard } from './guards/admin.guard';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, AdminGuard],
+  providers: [AuthService, EmailVerificationService, JwtStrategy, AdminGuard],
   exports: [JwtModule, AdminGuard],
 })
 export class AuthModule {}
