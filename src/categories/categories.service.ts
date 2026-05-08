@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 
 import { Category, CategoryDocument } from './schemas/category.schema';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -15,14 +15,35 @@ export class CategoriesService {
   ) {}
 
   async ensureDefaultCategories() {
-    const defaults = ['Desserts', 'Fruit', 'Energy', 'Tobacco', 'Party Mix', 'All Products'];
-    for (const name of defaults) {
-      await this.categoryModel.updateOne({ name }, { $setOnInsert: { name } }, { upsert: true });
+    const defaults = ['All Products', 'Desserts', 'Fruit', 'Energy', 'Tobacco', 'Party Mix'];
+    for (let i = 0; i < defaults.length; i++) {
+      const name = defaults[i];
+      await this.categoryModel.updateOne(
+        { name },
+        { $setOnInsert: { name, order: i } },
+        { upsert: true },
+      );
+    }
+
+    // Backfill `order` for any pre-existing categories that don't have it set yet.
+    const missing = await this.categoryModel
+      .find({ order: { $exists: false } })
+      .sort({ name: 1 })
+      .lean();
+    if (missing.length) {
+      const last = await this.categoryModel
+        .findOne({ order: { $exists: true } })
+        .sort({ order: -1 })
+        .lean();
+      let next = (last?.order ?? -1) + 1;
+      for (const cat of missing) {
+        await this.categoryModel.updateOne({ _id: cat._id }, { $set: { order: next++ } });
+      }
     }
   }
 
   async findAll() {
-    return this.categoryModel.find().sort({ name: 1 }).lean();
+    return this.categoryModel.find().sort({ order: 1, name: 1 }).lean();
   }
 
   async findOne(id: string) {
@@ -44,10 +65,14 @@ export class CategoriesService {
         categoryImageUrl = uploaded.fileUrl;
       }
 
+      const last = await this.categoryModel.findOne().sort({ order: -1 }).lean();
+      const order = (last?.order ?? -1) + 1;
+
       return await this.categoryModel.create({
         name: dto.name,
         description: dto.description,
         categoryImageUrl,
+        order,
       });
     } catch (e: any) {
       // Handle duplicate unique `name`
@@ -88,5 +113,18 @@ export class CategoriesService {
     const doc = await this.categoryModel.findByIdAndDelete(id).lean();
     if (!doc) throw new NotFoundException('Category not found');
     return { deleted: true };
+  }
+
+  async reorder(orderedIds: string[]) {
+    if (!orderedIds.length) return this.findAll();
+
+    const ops = orderedIds.map((id, idx) => ({
+      updateOne: {
+        filter: { _id: new Types.ObjectId(id) },
+        update: { $set: { order: idx } },
+      },
+    }));
+    await this.categoryModel.bulkWrite(ops);
+    return this.findAll();
   }
 }

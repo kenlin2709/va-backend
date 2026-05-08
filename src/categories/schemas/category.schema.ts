@@ -13,6 +13,9 @@ export class Category {
 
   @Prop({ trim: true })
   categoryImageUrl?: string;
+
+  @Prop({ default: 0, index: true })
+  order!: number;
 }
 
 export const CategorySchema = SchemaFactory.createForClass(Category);
