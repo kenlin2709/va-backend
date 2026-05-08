@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 
 import { Category, CategoryDocument } from './schemas/category.schema';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -65,8 +65,11 @@ export class CategoriesService {
         categoryImageUrl = uploaded.fileUrl;
       }
 
-      const last = await this.categoryModel.findOne().sort({ order: -1 }).lean();
-      const order = (last?.order ?? -1) + 1;
+      let order = dto.order;
+      if (typeof order !== 'number') {
+        const last = await this.categoryModel.findOne().sort({ order: -1 }).lean();
+        order = (last?.order ?? -1) + 1;
+      }
 
       return await this.categoryModel.create({
         name: dto.name,
@@ -113,18 +116,5 @@ export class CategoriesService {
     const doc = await this.categoryModel.findByIdAndDelete(id).lean();
     if (!doc) throw new NotFoundException('Category not found');
     return { deleted: true };
-  }
-
-  async reorder(orderedIds: string[]) {
-    if (!orderedIds.length) return this.findAll();
-
-    const ops = orderedIds.map((id, idx) => ({
-      updateOne: {
-        filter: { _id: new Types.ObjectId(id) },
-        update: { $set: { order: idx } },
-      },
-    }));
-    await this.categoryModel.bulkWrite(ops);
-    return this.findAll();
   }
 }

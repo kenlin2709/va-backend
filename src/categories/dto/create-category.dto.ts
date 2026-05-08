@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsOptional, IsString, IsUrl } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, IsUrl, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateCategoryDto {
   @IsString()
@@ -13,6 +14,10 @@ export class CreateCategoryDto {
   @IsString()
   @IsUrl({ require_tld: false }, { message: 'categoryImageUrl must be a valid URL' })
   categoryImageUrl?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  order?: number;
 }
-
-

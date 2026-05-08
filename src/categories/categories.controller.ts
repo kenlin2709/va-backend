@@ -15,7 +15,6 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
-import { ReorderCategoriesDto } from './dto/reorder-categories.dto';
 
 @Controller('categories')
 export class CategoriesController {
@@ -24,11 +23,6 @@ export class CategoriesController {
   @Get()
   findAll() {
     return this.categoriesService.findAll();
-  }
-
-  @Post('reorder')
-  reorder(@Body() body: ReorderCategoriesDto) {
-    return this.categoriesService.reorder(body.orderedIds);
   }
 
   @Get(':id')
