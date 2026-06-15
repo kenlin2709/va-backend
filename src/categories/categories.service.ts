@@ -15,16 +15,6 @@ export class CategoriesService {
   ) {}
 
   async ensureDefaultCategories() {
-    const defaults = ['All Products', 'Desserts', 'Fruit', 'Energy', 'Tobacco', 'Party Mix'];
-    for (let i = 0; i < defaults.length; i++) {
-      const name = defaults[i];
-      await this.categoryModel.updateOne(
-        { name },
-        { $setOnInsert: { name, order: i } },
-        { upsert: true },
-      );
-    }
-
     // Backfill `order` for any pre-existing categories that don't have it set yet.
     const missing = await this.categoryModel
       .find({ order: { $exists: false } })
