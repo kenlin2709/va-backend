@@ -185,7 +185,7 @@ export class OrdersService {
       await this.couponsService.markAsUsed(cId, order._id as Types.ObjectId);
     }
 
-    // Send payment reminder emails (instant, 1 min, 2 min)
+    // Send payment reminder emails (instant, 2 hours, 24 hours)
     this.sendPaymentReminderEmails(
       order._id as Types.ObjectId,
       customerId,
@@ -244,7 +244,7 @@ export class OrdersService {
         email: customer.email,
         orderDetails: { ...emailData, reminderNumber: 2 },
       },
-      60, // 1 minute in seconds
+      2 * 60 * 60, // 2 hours in seconds
     );
     if (messageId2) qstashMessageIds.push(messageId2);
 
@@ -254,7 +254,7 @@ export class OrdersService {
         email: customer.email,
         orderDetails: { ...emailData, reminderNumber: 3 },
       },
-      120, // 2 minutes in seconds
+      24 * 60 * 60, // 24 hours in seconds
     );
     if (messageId3) qstashMessageIds.push(messageId3);
 
